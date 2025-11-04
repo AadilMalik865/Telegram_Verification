@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram URL Verifier</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center py-10">
+
+<div class="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-3xl">
+  <h1 class="text-4xl font-extrabold text-center text-blue-600 mb-6">📡 Telegram URL Verifier</h1>
+
+  <div class="text-center mb-6">
+    <a href="{{ url_for('auth.login') }}">
+      <button class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow">
+        🔄 Login with another account
+      </button>
+    </a>
+  </div>
+
+  <form id="scrapeForm" method="POST" class="mb-8">
+    <label class="block text-lg font-semibold mb-2">Enter Telegram URLs (one per line):</label>
+    <textarea name="channel_urls" rows="6"
+      class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+      placeholder="https://t.me/example_channel" required></textarea>
+
+    <div class="text-center mt-4 space-x-3">
+      <button type="submit"
+        class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-8 rounded-lg shadow">
+        🚀 Check URLs
+      </button>
+
+      <button type="button" id="stopBtn"
+        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-8 rounded-lg shadow">
+        🛑 Stop
+      </button>
+
+      <a href="/download/telegram_data.csv" 
+        id="downloadBtn"
+        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-8 rounded-lg shadow">
+        📥 Download Latest Data
+      </a>
+    </div>
+  </form>
+
+  <div>
+    <h3 class="text-xl font-semibold mb-2">📡 Live URL Status:</h3>
+    <div id="progressBox"
+      class="border border-gray-300 p-4 h-64 overflow-y-scroll rounded-lg bg-gray-50 mb-4 text-sm font-mono leading-relaxed">
+      <p class="text-gray-400 text-center">Waiting for URL verification...</p>
+    </div>
+  </div>
+
+  <div id="loader" class="hidden text-center mt-4">
+    <svg class="animate-spin h-8 w-8 mx-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"></path>
+    </svg>
+    <p class="text-gray-600 mt-2 font-medium">Processing your URLs...</p>
+  </div>
+
+</div>
+
+<script>
+var source = new EventSource("{{ url_for('progress') }}");
+source.onmessage = function (event) {
+    var box = document.getElementById("progressBox");
+    if (box.textContent.includes("Waiting")) box.innerHTML = "";
+    box.innerHTML += event.data + "<br>";
+    box.scrollTop = box.scrollHeight;
+};
+
+// Show loader while submitting
+document.getElementById("scrapeForm").addEventListener("submit", function() {
+    document.getElementById("loader").classList.remove("hidden");
+    document.getElementById("progressBox").innerHTML =
+        "<p class='text-blue-500'>Checking Telegram URLs...</p>";
+});
+
+// Stop button
+document.getElementById("stopBtn").addEventListener("click", function() {
+    fetch("/stop", { method: "POST" })
+      .then(() => {
+        const box = document.getElementById("progressBox");
+        box.innerHTML += "<br><span class='text-red-600 font-semibold'>🛑 Stop requested...</span><br>";
+      });
+});
+</script>
+
+</body>
+</html>

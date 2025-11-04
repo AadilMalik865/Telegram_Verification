@@ -1,0 +1,29 @@
+<!-- templates/home.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Telegram Data Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+    <div class="bg-white p-10 rounded-2xl shadow-2xl text-center w-96">
+        <h1 class="text-3xl font-extrabold mb-8">📡 Telegram Data Manager</h1>
+        
+        <!-- Fetch Telegram Data -->
+        <a href="{{ url_for('index') }}" 
+           class="block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-lg mb-4 transition-all shadow-md">
+            📥 Fetch Telegram Data
+        </a>
+
+        <!-- Verify Telegram Data (placeholder) -->
+        <button disabled
+           class="block bg-gray-400 text-white font-semibold py-3 rounded-lg cursor-not-allowed shadow-inner">
+            ✅ Verify Telegram Data (Coming Soon)
+        </button>
+    </div>
+
+</body>
+</html>
