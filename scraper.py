@@ -38,7 +38,9 @@ async def fetch_messages(post_urls, phone, logger=print, stop_event=None):
     client = get_client(phone)
     logger(f"📡 Checking {len(post_urls)} URLs…")
 
-    file_name = "telegram_data.csv"
+    from client_manager import normalize_phone
+    key = normalize_phone(phone)
+    file_name = f"telegram_data_{key}.csv" if key else "telegram_data.csv"
     file_path = os.path.join(BASE_DIR, file_name)
 
     with open(file_path, mode='w', newline='', encoding='utf-8') as file:
@@ -120,9 +122,14 @@ async def fetch_messages(post_urls, phone, logger=print, stop_event=None):
                 else:
                     post_description = "Entity not found"
                     status = "Dead"
+                
 
                 # Extra check: if description empty or blocked, mark Dead
-                if (not post_description) or post_description.lower() in ["no description", "message not found"]:
+                if channel_name == "Unknown":
+                    status = "User Has Not Joined Channel"
+
+                # If message was not found or description empty
+                elif (not post_description) or post_description.lower() in ["no description", "message not found"]:
                     status = "Dead"
 
                 writer.writerow({

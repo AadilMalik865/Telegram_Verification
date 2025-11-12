@@ -9,7 +9,9 @@
 <body class="bg-gray-100 min-h-screen flex items-center justify-center py-10">
 
 <div class="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-4xl">
-  <h1 class="text-4xl font-extrabold text-center text-blue-600 mb-6">📡 Telegram URL Verification Tool</h1>
+  <h1 class="text-4xl font-extrabold text-center text-blue-600 mb-6">
+    📡 Telegram URL Verification Tool
+  </h1>
 
   <div class="text-center mb-6">
     <a href="{{ url_for('auth.login') }}">
@@ -36,10 +38,11 @@
         🛑 Stop
       </button>
 
-      <a href="/download/telegram_data.csv" 
-        id="downloadBtn"
+      <!-- UPDATED: download button no longer hardcoded -->
+      <a href="#" 
+        id="downloadBtn" type="button"
         class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-8 rounded-lg shadow">
-        📥 Download Latest Data
+        📥 Download CSV
       </a>
     </div>
   </form>
@@ -62,7 +65,7 @@
     <p class="text-gray-600 mt-2 font-medium">Processing your URLs...</p>
   </div>
 
-  <!-- Table for results -->
+  <!-- Table -->
   <div class="mt-6 overflow-x-auto">
     <table class="min-w-full bg-white border border-gray-300 rounded-lg" id="resultsTable">
       <thead>
@@ -83,6 +86,7 @@
 
 </div>
 
+
 <script>
 var source = new EventSource("{{ url_for('progress') }}");
 source.onmessage = function (event) {
@@ -91,37 +95,52 @@ source.onmessage = function (event) {
     box.innerHTML += event.data + "<br>";
     box.scrollTop = box.scrollHeight;
 
-    // Add to results table dynamically if message contains "→ post_status:"
     if(event.data.includes("→ post_status:")) {
         const parts = event.data.split("→ post_status:");
         const url = parts[0].trim();
         const status = parts[1].trim();
         const tbody = document.getElementById("resultsBody");
 
-        // Replace placeholder row if first result
         if(tbody.children.length === 1 && tbody.children[0].children[0].colSpan === 4) {
             tbody.innerHTML = "";
         }
 
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td class="px-4 py-2 border-b"><a href="${url}" target="_blank" class="text-blue-600 hover:underline">${url}</a></td>
+            <td class="px-4 py-2 border-b">
+              <a href="${url}" target="_blank" class="text-blue-600 hover:underline">${url}</a>
+            </td>
             <td class="px-4 py-2 border-b">-</td>
             <td class="px-4 py-2 border-b">-</td>
             <td class="px-4 py-2 border-b">${status}</td>
         `;
         tbody.appendChild(row);
+
+        checkDownloadFile();
     }
 };
 
-// Show loader while submitting
+
+function checkDownloadFile() {
+    fetch("/check_file")
+        .then(res => res.json())
+        .then(data => {
+            console.log("CHECK FILE RESPONSE:", data); // debug
+
+            if (data.exists) {
+                let downloadBtn = document.getElementById("downloadBtn");
+                downloadBtn.classList.remove("hidden");
+                downloadBtn.href = `/download/${data.file_name}`;
+            }
+        });
+}
+
 document.getElementById("scrapeForm").addEventListener("submit", function() {
     document.getElementById("loader").classList.remove("hidden");
     document.getElementById("progressBox").innerHTML =
         "<p class='text-blue-500'>Checking Telegram URLs...</p>";
 });
 
-// Stop button
 document.getElementById("stopBtn").addEventListener("click", function() {
     fetch("/stop", { method: "POST" })
       .then(() => {
