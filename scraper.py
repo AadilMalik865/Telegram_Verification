@@ -4,13 +4,11 @@ import tempfile
 import re
 from telethon.tl.types import PeerChannel
 from client_manager import get_client
+from google_sheet import append_row
 
 BASE_DIR = tempfile.gettempdir()
 
 def extract_channel_info_from_url(url):
-    """
-    Returns (channel_identifier, msg_id, is_private)
-    """
     if not url or not url.strip():
         return None, None, None
 
@@ -31,7 +29,7 @@ def extract_channel_info_from_url(url):
         username = public_profile_match.group(1)
         return username, None, False
 
-    return None, None, None  # Invalid URL
+    return None, None, None
 
 
 async def fetch_messages(post_urls, phone, logger=print, stop_event=None):
@@ -45,8 +43,14 @@ async def fetch_messages(post_urls, phone, logger=print, stop_event=None):
 
     with open(file_path, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(
-            file, 
-            fieldnames=['post_url', 'channel_name', 'views', 'post_description', 'post_status']
+            file,
+            fieldnames=[
+                'post_url',
+                'channel_url',
+                'post_description',
+                'post_upload_date',
+                'post_status'
+            ]
         )
         writer.writeheader()
 
@@ -56,100 +60,111 @@ async def fetch_messages(post_urls, phone, logger=print, stop_event=None):
                 return file_path
 
             if not url or not url.strip():
-                writer.writerow({
-                    'post_url': "N/A",
-                    'channel_name': "N/A",
-                    'views': 0,
-                    'post_description': "No URL provided",
+                row_data = {
+                    'post_url': url,
+                    'channel_url': "N/A",
+                    'post_description': "Empty URL",
+                    'post_upload_date': "N/A",
                     'post_status': "Dead"
-                })
+                }
+                writer.writerow(row_data)
+                append_row(row_data)
                 continue
 
             try:
                 channel_identifier, msg_id, is_private = extract_channel_info_from_url(url)
 
                 if not channel_identifier:
-                    writer.writerow({
+                    row_data = {
                         'post_url': url,
-                        'channel_name': "N/A",
-                        'views': 0,
+                        'channel_url': "N/A",
                         'post_description': "Invalid URL",
+                        'post_upload_date': "N/A",
                         'post_status': "Dead"
-                    })
-                    logger(f"{url} → URL invalid, marked Dead")
+                    }
+                    writer.writerow(row_data)
                     continue
 
-                # Fetch channel name
-                channel_name = "Unknown"
+                # Fetch channel
                 entity = None
+                channel_url = "N/A"
+
                 try:
                     if is_private:
                         entity = await client.get_entity(PeerChannel(channel_identifier))
+                        channel_url = f"https://t.me/c/{channel_identifier}"
                     else:
                         entity = await client.get_entity(channel_identifier)
-                    channel_name = getattr(entity, "title", str(channel_identifier))
+                        channel_url = f"https://t.me/{channel_identifier}"
                 except Exception:
                     entity = None
 
-                views = 0
                 post_description = "No description"
+                post_upload_date = "N/A"
                 status = "Dead"
 
-                # Check message if msg_id provided
+                # Fetch message
                 if msg_id and entity:
                     try:
                         message = await client.get_messages(entity, ids=msg_id)
-                        if message and message.text:
-                            post_description = message.text
-                        else:
-                            post_description = "No description"
 
-                        views = message.views if message and hasattr(message, "views") else 0
+                        if message:
+                            if message.text:
+                                post_description = message.text
 
-                        # Determine status
-                        if (not post_description) or re.search(r"copyright infringement", post_description, re.IGNORECASE):
+                            if message.date:
+                                post_upload_date = message.date.strftime("%Y-%m-%d %H:%M:%S")
+
+                        if re.search(r"copyright infringement", post_description, re.IGNORECASE):
                             status = "Dead"
                         else:
                             status = "Active"
+
                     except Exception:
                         post_description = "Message not found"
                         status = "Dead"
 
-                # If no msg_id, check entity existence
                 elif entity:
                     post_description = "No specific post provided"
-                    status = "Active"  # Entity exists
+                    status = "Active"
+
                 else:
                     post_description = "Entity not found"
                     status = "Dead"
-                
 
-                # Extra check: if description empty or blocked, mark Dead
-                if channel_name == "Unknown":
+                # Final logic
+                if channel_url == "N/A":
                     status = "User Has Not Joined Channel"
 
-                # If message was not found or description empty
                 elif (not post_description) or post_description.lower() in ["no description", "message not found"]:
-                    status = "Dead"
+                    status = "Active" if post_upload_date != "N/A" else "Dead"
 
-                writer.writerow({
+                row_data = {
                     'post_url': url,
-                    'channel_name': channel_name,
-                    'views': views,
+                    'channel_url': channel_url,
                     'post_description': post_description,
+                    'post_upload_date': post_upload_date,
                     'post_status': status
-                })
+                }
+
+                writer.writerow(row_data)
+
+                try:
+                    append_row(row_data)
+                except Exception as e:
+                    logger(f"Google Sheet Error: {e}")
 
                 logger(f"{url} → post_status: {status}")
 
             except Exception as e:
-                writer.writerow({
+                row_data = {
                     'post_url': url,
-                    'channel_name': "N/A",
-                    'views': 0,
+                    'channel_url': "N/A",
                     'post_description': f"Error: {e}",
+                    'post_upload_date': "N/A",
                     'post_status': "Dead"
-                })
+                }
+                writer.writerow(row_data)
                 logger(f"❌ Error processing {url}: {e}")
 
     return file_path
