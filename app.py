@@ -3,6 +3,7 @@ import os, queue, threading, tempfile
 from scraper import fetch_messages
 from auth import auth_bp
 from client_manager import run_async, normalize_phone
+from google_sheet import append_row  # <-- import your updated Google Sheets function
 
 app = Flask(__name__)
 app.secret_key = "supersecret"
@@ -11,12 +12,13 @@ BASE_DIR = tempfile.gettempdir()
 
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
-# Per-user state maps keyed by normalized phone (digits-only)
+# -------------------------------
+# Per-user state
+# -------------------------------
 user_log_queues = {}    # phone_norm -> Queue()
 user_stop_events = {}   # phone_norm -> threading.Event()
 user_scraped_files = {} # phone_norm -> filepath
 
-# Helper to get or create per-user objects
 def _get_user_queue(phone_norm):
     if phone_norm not in user_log_queues:
         user_log_queues[phone_norm] = queue.Queue()
@@ -33,18 +35,15 @@ def _set_user_file(phone_norm, path):
 def _get_user_file(phone_norm):
     return user_scraped_files.get(phone_norm)
 
-# ----------------------------------------------------------
-# Helper: push messages to SSE per user
-# ----------------------------------------------------------
 def log_message_for(phone_norm, msg):
-    # also print for server logs
+    """Push messages to SSE queue and server log."""
     print(f"[{phone_norm}] {msg}", flush=True)
     q = _get_user_queue(phone_norm)
     q.put(msg)
 
-# ----------------------------------------------------------
+# -------------------------------
 # Routes
-# ----------------------------------------------------------
+# -------------------------------
 @app.route("/")
 def home():
     return redirect(url_for("auth.login"))
@@ -74,16 +73,21 @@ def index():
         _set_user_file(phone_norm, None)
 
         def background_scrape(local_phone_norm):
-            log_message_for(local_phone_norm, "🚀 Scraping started in background...")
+            log_message_for(local_phone_norm, "🚀 Scraping started...")
             try:
-                # run async scraper
-                result_file = run_async(fetch_messages(urls, local_phone_norm, lambda m: log_message_for(local_phone_norm, m), stop_event))
+                result_file = run_async(
+                    fetch_messages(
+                        urls,
+                        local_phone_norm,
+                        logger=lambda m: log_message_for(local_phone_norm, m),
+                        stop_event=stop_event
+                    )
+                )
 
-                # prefer returned file path
+                # Store final CSV path
                 if result_file and os.path.exists(result_file):
                     _set_user_file(local_phone_norm, result_file)
                 else:
-                    # fallback to default /tmp/telegram_data.csv
                     fallback = os.path.join(BASE_DIR, "telegram_data.csv")
                     _set_user_file(local_phone_norm, fallback if os.path.exists(fallback) else result_file)
 
@@ -100,9 +104,9 @@ def index():
 
     return render_template("index.html", file_exists=file_exists, file_name=user_file)
 
-# ----------------------------------------------------------
-# Server-Sent Events (SSE) – Live log updates (per-user)
-# ----------------------------------------------------------
+# -------------------------------
+# SSE – live log updates
+# -------------------------------
 @app.route("/progress")
 def progress():
     phone_norm = session.get("phone")
@@ -125,9 +129,9 @@ def progress():
         },
     )
 
-# ----------------------------------------------------------
-# Stop scraping (per-user)
-# ----------------------------------------------------------
+# -------------------------------
+# Stop scraping
+# -------------------------------
 @app.route("/stop", methods=["POST"])
 def stop_scraping():
     phone_norm = session.get("phone")
@@ -139,34 +143,25 @@ def stop_scraping():
     log_message_for(phone_norm, "🛑 Stop signal received — scraper will stop soon.")
     return jsonify({"status": "stopping"})
 
-# ----------------------------------------------------------
-# Check file existence (per-user)
-# ----------------------------------------------------------
+# -------------------------------
+# Check if CSV file exists
+# -------------------------------
 @app.route("/check_file")
 def check_file():
     phone_norm = session.get("phone")
-
     user_file = _get_user_file(phone_norm)
-
     if user_file and os.path.exists(user_file):
         return {"exists": True, "file_name": os.path.basename(user_file)}
-
     return {"exists": False}
 
-
-# ----------------------------------------------------------
-# File download (per-user)
-# ----------------------------------------------------------
+# -------------------------------
+# Download CSV per-user
+# -------------------------------
 @app.route("/download/<file_name>")
 def download(file_name):
     phone_norm = session.get("phone")
-
-    # get final path from memory
     file_path = _get_user_file(phone_norm)
 
-    print("DOWNLOAD REQUEST FILE PATH:", file_path)  # debug
-
-    # double check path exists
     if not file_path or not os.path.isfile(file_path):
         return "File not found on server", 404
 
@@ -177,10 +172,9 @@ def download(file_name):
         download_name=file_name
     )
 
-
-# ----------------------------------------------------------
-# Start app
-# ----------------------------------------------------------
+# -------------------------------
+# Run app
+# -------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True, threaded=True)

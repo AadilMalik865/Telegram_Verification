@@ -1,0 +1,7 @@
+{
+    "python.defaultInterpreterPath": "/usr/local/bin/python3",
+    "python.analysis.extraPaths": [
+        "/home/codespace/.local/lib/python3.12/site-packages"
+    ],
+    "python.analysis.autoImportCompletions": true
+}
