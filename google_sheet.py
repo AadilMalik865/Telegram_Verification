@@ -1,5 +1,7 @@
 # google_sheet.py
 import gspread
+import os
+import json
 from google.oauth2.service_account import Credentials
 
 # -------------------------------
@@ -12,8 +14,9 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 # -------------------------------
 # SETUP CLIENT
 # -------------------------------
-credentials = Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE,
+creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
+credentials = Credentials.from_service_account_info(
+    creds_dict,
     scopes=SCOPES
 )
 

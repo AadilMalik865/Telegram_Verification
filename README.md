@@ -9,3 +9,8 @@ Login Number Format
 
 download data merge while using on multiple system
 when URLs input then data merge
+
+
+git add .
+git commit -m "Google sheet added"
+git push origin main
