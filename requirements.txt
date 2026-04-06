@@ -1,5 +1,6 @@
-flask
+Flask
 telethon
-nest-asyncio
-gunicorn
-
+gspread
+oauth2client
+python-dotenv
+nest_asyncio
