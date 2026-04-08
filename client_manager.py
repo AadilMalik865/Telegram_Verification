@@ -49,7 +49,7 @@ def get_client(phone):
         # TelegramClient accepts session string path (without extension)
         clients[key] = TelegramClient(session_path, API_ID, API_HASH, loop=loop)
         # connect synchronously on startup for this client
-        loop.run_until_complete(clients[key].connect())
+        run_async(clients[key].connect())
     return clients[key]
 
 def run_async(coro):
